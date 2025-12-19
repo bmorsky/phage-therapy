@@ -7,7 +7,7 @@ eq_P = fill(NaN, 100,5)
 eq_stab = fill("unknown", 100, 5)
 
 # Parameters
-params = (β = 100, γ = 10.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
+params = (β = 100, γ = 100.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
     κ = 1000.0, μ = 0.01, ρ = 1.0, σ = 0.005, ϕ = 0.05, ω = 1.0)
 
 function B_eq!(B, p)
@@ -74,7 +74,7 @@ for i = 1:100
     eq_stab[i,1] = stability(eigvals(J_eq))
 
     ############# Calculate ℰ₂ ############
-    local sol_B_eq = find_zeros(x -> B_eq!(x,p_var), (0,params[:κ]+1), atol=1e-10 ,rtol=1e-10 ,xatol=1e-10, xrtol=1e-10)
+    local sol_B_eq = find_zeros(x -> B_eq!(x,p_var), (0,p_var[:κ]+1), atol=1e-10 ,rtol=1e-10 ,xatol=1e-10, xrtol=1e-10)
     local sol_I_eq = I_eq!(sol_B_eq, p_var)
     local equilibrium = hcat(sol_B_eq,sol_I_eq,zeros(length(sol_B_eq)))
     for j = 1:size(equilibrium,1)

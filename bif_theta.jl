@@ -1,4 +1,4 @@
-using Roots, LinearAlgebra, DifferentialEquations, Plots, Parameters, LaTeXStrings
+using Roots, LinearAlgebra, DifferentialEquations, Plots, Parameters
 
 vars = zeros(100)
 eq_B = fill(NaN, 100,5)
@@ -7,7 +7,7 @@ eq_P = fill(NaN, 100,5)
 eq_stab = fill("unknown", 100, 5)
 
 # Parameters
-params = (β = 100, γ = 10.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
+params = (β = 100, γ = 100.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
     κ = 1000.0, μ = 0.01, ρ = 1.0, σ = 0.005, ϕ = 0.05, ω = 1.0)
 
 function B_eq!(B, p)
@@ -108,6 +108,6 @@ marker_colors = map(c -> color_map[c], eq_stab)
 scatter(vars,symlog.(eq_B), markercolor=marker_colors,
 yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
 markerstrokewidth=0, linewidth=2, colorbar=false, legend=false,
-xlabel="max ctivation rate, θ",ylabel="B (10⁶ cells/mL)",size=(300,200))
+xlabel="max activation rate, θ",ylabel="B (10⁶ cells/mL)",size=(300,200))
 
 savefig("bif_theta.pdf")
