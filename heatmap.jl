@@ -6,7 +6,7 @@ output_weak = zeros(901,1201)
 params = (β = 100, γ = 100.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
     κ = 1000.0, μ = 0.01, ρ = 1.0, σ = 0.005, ϕ = 0.05, ω = 1.0)
 
-params_weak = (β = 100, γ = 100.0, δ = 0.02, ϵ = 0.082, ζ = 2.2, η = 1.0, θ = 0.01,
+params_weak = (β = 100, γ = 100.0, δ = 0.02, ϵ = 0.082, ζ = 2.2, η = 1.0, θ = 0.1,
     κ = 1000.0, μ = 0.01, ρ = 1.0, σ = 0.005, ϕ = 0.05, ω = 1.0)
 
 # Defining ODE for time series simulation
@@ -62,7 +62,7 @@ end
 colors = [RGB(204/255,42/255,54/255), RGB(0,160/255,176/255)]
 discrete_colors = cgrad(colors, categorical=true)
 
-heatmap(output, color = discrete_colors, cbar = false,
+heatmap(output_normal, color = discrete_colors, cbar = false,
 yticks = ([1, 301, 601, 901],["10⁻⁶","10⁻³","1","10³"]), ylabel="B₀",
 xticks = ([1, 301, 601, 901, 1201],["10⁻⁶","10⁻³","1","10³","10⁶"]), xlabel="P₀",
 size=(300, 200))
