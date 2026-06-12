@@ -1,7 +1,11 @@
-using Roots, LinearAlgebra, DifferentialEquations, DiffEqCallbacks, Plots, Parameters
+using Roots, LinearAlgebra, DifferentialEquations, Plots, Parameters
 
-plot_font = "Computer Modern"
-checkdomain(u, p, t) = any(x -> x < 0, u)
+# y-axis scaling function
+function symlog(x)
+    if x != NaN
+    return log10.(1 .+ 10000*x)
+    end
+end
 
 T = 400.0
 # Parameters
@@ -106,35 +110,15 @@ P₀ = 0.0
 u₀ = [B₀, I₀, P₀]
 tspan = (0.0, T)
 prob = ODEProblem(system_ode!, u₀, tspan, params)
-affect_P!(integrator) = integrator.u[3] += 10000.0
+affect_P!(integrator) = integrator.u[3] += 1.0
 cb_P = PresetTimeCallback(100, affect_P!)
-condition_B_eliminated(u, t, integrator) = u[1] - 1e-6
-function affect_B_eliminated!(integrator)
-    integrator.u[1] = 0.0
-end
-condition_P_eliminated(u, t, integrator) = u[3] - 1e-6
-function affect_P_eliminated!(integrator)
-    integrator.u[3] = 0.0
-end
-cb_B_eliminated = ContinuousCallback(condition_B_eliminated,affect_B_eliminated!)
-cb_P_eliminated = ContinuousCallback(condition_P_eliminated,affect_P_eliminated!)
-cbset = CallbackSet(cb_B_eliminated, cb_P_eliminated, cb_P)
-sol = solve(prob, Rodas4P(), isoutofdomain=checkdomain, callback = cbset, abstol=1e-10, reltol=1e-10, saveat=1)
+checkdomain(u, p, t) = any(x -> x < 0, u)
+sol = solve(prob, Rodas4P(), isoutofdomain=checkdomain, callback = cb_P, abstol=1e-10, reltol=1e-10)
 
 # Generating time series plots
 B_vals = sol[1, :]
 I_vals = sol[2, :]
-P_vals = vcat(fill(NaN,101),sol[3, 102:end])
-
-for i=1:length(B_vals)
-    if B_vals[i] < 1e-6
-        B_vals[i] = NaN
-    end
-    if P_vals[i] < 1e-6
-        P_vals[i] = NaN
-    end
-end
-
+P_vals = sol[3, :]
 println("Baseline minimum values for t>100")
 println("B = ", minimum(B_vals[200:end]))
 println("I = ", minimum(I_vals[200:end]))
@@ -144,19 +128,19 @@ println("B = ", B_vals[end])
 println("I = ", I_vals[end])
 println("P = ", P_vals[end])
 
-# Figure 4: Time series plots for the baseline scenario with parameters from Table 1.
-plot(sol.t, log10.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
-    yticks = ([-6,-3,0,3],["10⁻⁶","10⁻³","1","10³"]),ylims=(-6.09,3.09),
+plot_font = "Computer Modern"
+plot(sol.t, symlog.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("B_time_series_baseline.pdf")
 
-plot(sol.t, log10.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
-    yticks = ([-4,-2,0,2],["10⁻⁴","10⁻²","1","10²"]),ylims=(-4.06,2.06),
+plot(sol.t, symlog.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("I_time_series_baseline.pdf")
 
-plot(sol.t, log10.(P_vals), legend=false, xlabel="Time (hours/mL)", ylabel="P (10⁶ phages/mL)",
-    yticks = ([-6,-4,-2,0,2,4,6],["10⁻⁶","10⁻⁴","10⁻²","1","10²","10⁴","10⁶"]),ylims=(-6.12,6.12),
+plot(sol.t, symlog.(P_vals), legend=false, xlabel="Time (hours/mL)", ylabel="P (10⁶ phages/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000,10000]),["0","10⁻³","10⁻¹","1","10","10³","10⁴"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("P_time_series_baseline.pdf")
 
@@ -184,15 +168,14 @@ plot3d(
 savefig("baseline_phase_diagram.pdf")
 
 # Immunodeficient host, no antibiotics
-params_immunodef = merge(params, (; δ=0.02, η=1.0, θ = 0.01, ρ = 10))
+params_immunodef = merge(params, (; δ=0.02, η=1.0, θ = 0.01))
 B₀ = 10.0
 I₀ = params[:σ] / params[:δ]
 P₀ = 0.0
 u₀ = [B₀, I₀, P₀]
 tspan = (0.0, T)
-
 prob = ODEProblem(system_ode!, u₀, tspan, params_immunodef)
-sol = solve(prob, Rodas5P(), isoutofdomain=checkdomain, callback=cbset, abstol=1e-10, reltol=1e-10, saveat=1)
+sol = solve(prob, Rodas5P(), isoutofdomain=checkdomain, callback=cb_P, abstol=1e-10, reltol=1e-10)
 
 # Generating time series plots
 B_vals = sol[1, :]
@@ -203,28 +186,19 @@ println("B = ", minimum(B_vals))
 println("I = ", minimum(I_vals))
 println("P = ", minimum(P_vals))
 
-for i=1:length(B_vals)
-    if B_vals[i] < 1e-6
-        B_vals[i] = NaN
-    end
-    if P_vals[i] < 1e-6
-        P_vals[i] = NaN
-    end
-end
-
-# Figure 5: Time series plots for a weakened immune response scenario.
-plot(sol.t, log10.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
-    yticks = ([-6,-3,0,3],["10⁻⁶","10⁻³","1","10³"]),ylims=(-6.09,3.09),
+plot_font = "Computer Modern"
+plot(sol.t, symlog.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("B_time_series_immunodef.pdf")
 
-plot(sol.t, log10.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
-    yticks = ([-4,-2,0,2],["10⁻⁴","10⁻²","1","10²"]),ylims=(-4.06,2.06),
+plot(sol.t, symlog.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("I_time_series_immunodef.pdf")
 
-plot(sol.t, log10.(P_vals), legend=false, xlabel="Time (hours/mL)", ylabel="P (10⁶ phages/mL)",
-    yticks = ([-6,-4,-2,0,2,4,6],["10⁻⁶","10⁻⁴","10⁻²","1","10²","10⁴","10⁶"]),ylims=(-6.12,6.12),
+plot(sol.t, symlog.(P_vals), legend=false, xlabel="Time (hours/mL)", ylabel="P (10⁶ phages/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000,10000]),["0","10⁻³","10⁻¹","1","10","10³","10⁴"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("P_time_series_immunodef.pdf")
 
@@ -269,33 +243,29 @@ function system_ode_antibiotics_only!(du, u, p, t)
     du[2] = ((θ * B) / (B + η) - μ * B - δ) * I + σ
     du[3] = -ν * A
 end
-B₀ = 10.0
-I₀ = params[:σ] / params[:δ]
-P₀ = 10.0
 u₀ = [B₀, I₀, 0]
 affect!(integrator) = integrator.u[3] += dose
 cb = PresetTimeCallback(dosetimes, affect!)
 prob = ODEProblem(system_ode_antibiotics_only!, u₀, tspan, params_antibiotic)
-sol = solve(prob, Rodas4P(), isoutofdomain=checkdomain, callback=cb, abstol=1e-10, reltol=1e-10, saveat=1)
+sol = solve(prob, Rodas4P(), isoutofdomain=checkdomain, callback=cb, abstol=1e-10, reltol=1e-10)
 
 # Generating time series plots
 B_vals = sol[1, :]
 I_vals = sol[2, :]
-A_vals = vcat(fill(NaN,101),sol[3, 102:end])
+A_vals = sol[3, :]
 
-# Figure 3: Time series plots for the case with periodic applications of antibiotics, but no phages are present.
-plot(sol.t, log10.(B_vals), legend=false, xlabel="Time", ylabel="B (10⁶ cells/mL)",
-    yticks = ([1, 2, 3],["10","10²","10³"]), ylims = (0.98,3.02),
+plot(sol.t, symlog.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("B_time_series_antibiotic_only.pdf")
 
-plot(sol.t, log10.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
-    yticks = ([-4.0, -3.0, -2.0, -1.0, 0.0, 1.0],["10⁻⁴","10⁻³","10⁻²","10⁻¹","1","10"]), ylims = (-4.05,1.05),
+plot(sol.t, symlog.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("I_time_series_antibiotic_only.pdf")
 
-plot(sol.t, log10.(A_vals), legend=false, xlabel="Time (hours)", ylabel="A (mg/L)",
-    yticks = ([-2, -1, 0, 1, 2],["10⁻²","10⁻¹","1","10","10²"]), ylims = (-2.04,2.04),
+plot(sol.t, symlog.(A_vals), legend=false, xlabel="Time (hours)", ylabel="A",
+    yticks = (symlog.([0, 0.01, 0.1, 1, 10,100]),["0","10⁻²","10⁻¹","1","10","10²"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("A_time_series_antibiotic_only.pdf")
 
@@ -327,31 +297,22 @@ println("B = ", minimum(B_vals))
 println("I = ", minimum(I_vals))
 println("P = ", minimum(P_vals))
 
-for i=1:length(B_vals)
-    if B_vals[i] < 1e-6
-        B_vals[i] = NaN
-    end
-    if P_vals[i] < 1e-6
-        P_vals[i] = NaN
-    end
-end
-
-plot(sol.t, log10.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
-    yticks = ([-6,-3,0,3],["10⁻⁶","10⁻³","1","10³"]),ylims=(-6.09,3.09),
+plot(sol.t, symlog.(B_vals), legend=false, xlabel="Time (hours)", ylabel="B (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("B_time_series_antibiotic_immunodef.pdf")
 
-plot(sol.t, log10.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
-    yticks = ([-4,-2,0,2],["10⁻⁴","10⁻²","1","10²"]),ylims=(-4.06,2.06),
+plot(sol.t, symlog.(I_vals), legend=false, xlabel="Time (hours)", ylabel="I (10⁶ cells/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("I_time_series_antibiotic_immunodef.pdf")
 
-plot(sol.t, log10.(P_vals), legend=false, xlabel="Time (hours)", ylabel="P (10⁶ phages/mL)",
-    yticks = ([-6,-4,-2,0,2,4,6],["10⁻⁶","10⁻⁴","10⁻²","1","10²","10⁴","10⁶"]),ylims=(-6.12,6.12),
+plot(sol.t, symlog.(P_vals), legend=false, xlabel="Time (hours)", ylabel="P (10⁶ phages/mL)",
+    yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000,10000]),["0","10⁻³","10⁻¹","1","10","10³","10⁴"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("P_time_series_antibiotic_immunodef.pdf")
 
-plot(sol.t, log10.(A_vals), legend=false, xlabel="Time (hours)", ylabel="A (mg/L)",
-    yticks = ([-2, -1, 0, 1, 2],["10⁻²","10⁻¹","1","10","10²"]), ylims = (-2.04,2.04),
+plot(sol.t, symlog.(A_vals), legend=false, xlabel="Time (hours)", ylabel="A",
+    yticks = (symlog.([0, 0.01, 0.1, 1, 10,100]),["0","10⁻²","10⁻¹","1","10","10²"]),
     linewidth=2, linecolor=RGB(79 / 255, 55 / 255, 45 / 255), size=(300, 200))
 savefig("A_time_series_antibiotic_immunodef.pdf")

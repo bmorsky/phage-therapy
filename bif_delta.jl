@@ -1,4 +1,4 @@
-using Roots, LinearAlgebra, DifferentialEquations, Plots, Parameters, LaTeXStrings
+using Roots, LinearAlgebra, DifferentialEquations, DiffEqCallbacks, Plots, Parameters, LaTeXStrings
 
 vars = zeros(100)
 eq_B = fill(NaN, 100,5)
@@ -9,6 +9,31 @@ eq_stab = fill("unknown", 100, 5)
 # Parameters
 params = (β = 100, γ = 100.0, δ = 0.002, ϵ = 0.082, ζ = 2.2, η = 0.1, θ = 0.97,
     κ = 1000.0, μ = 0.01, ρ = 1.0, σ = 0.005, ϕ = 0.05, ω = 1.0)
+
+# Defining ODE for time series simulation
+function system_ode!(du, u, p, t)
+    B, I, P = u
+    @unpack β, γ, δ, ϵ, ζ, η, θ, κ, μ, ρ, σ, ϕ, ω = p
+
+    du[1] = ρ * B * (1 - B / κ)  - (ϵ*B*I)/(1 + B/ζ) - (ϕ * B * P) / (1 + B / γ)
+    du[2] = ((θ * B) / (B + η) - μ * B - δ) * I + σ
+    du[3] = β * ϕ * B * P / (1 + B / γ) -ω * P
+end
+checkdomain(u, p, t) = any(x -> x < 0, u)
+affect_P!(integrator) = integrator.u[3] += 10000.0
+cb_P = PresetTimeCallback(100, affect_P!)
+condition_B_eliminated(u, t, integrator) = u[1] - 1e-6
+function affect_B_eliminated!(integrator)
+    integrator.u[1] = 0.0
+    terminate!(integrator)
+end
+condition_P_eliminated(u, t, integrator) = u[3] - 1e-6
+function affect_P_eliminated!(integrator)
+    integrator.u[3] = 0.0
+end
+cb_B_eliminated = ContinuousCallback(condition_B_eliminated,affect_B_eliminated!)
+cb_P_eliminated = ContinuousCallback(condition_P_eliminated,affect_P_eliminated!)
+cbset = CallbackSet(cb_B_eliminated, cb_P_eliminated, cb_P)
 
 function B_eq!(B, p)
     @unpack β, γ, δ, ϵ, ζ, η, θ, κ, μ, ρ, σ, ϕ, ω  = p
@@ -96,6 +121,14 @@ for i = 1:100
         J_eq = jacobian([B₃ I₃ P₃], p_var)
         eq_stab[i,5] = stability(eigvals(J_eq))
     end
+
+    if eq_stab[i,1] == "saddle"
+        prob = ODEProblem(system_ode!, [1.0, p_var[:σ] / p_var[:δ], 0.0], (0.0, 400.0), p_var)
+        sol = solve(prob, Rodas4P(), isoutofdomain=checkdomain, callback=cbset, abstol=1e-10, reltol=1e-10, saveat=1)
+        if any(x -> x < 1e-6, sol[1,:])
+            eq_stab[i,1] = "practically unstable"
+        end
+    end
 end
 
 function symlog(x)
@@ -104,11 +137,12 @@ function symlog(x)
     end
 end
 plot_font = "Computer Modern"
-color_map = Dict("stable" => RGB(0,160/255,176/255), "unstable" => RGB(235/255,104/255,65/255), "saddle" => RGB(204/255,42/255,54/255), "unknown" => RGB(79/255,55/255,45/255))
+color_map = Dict("stable" => RGB(0,160/255,176/255), "unstable" => RGB(235/255,104/255,65/255), 
+"saddle" => RGB(204/255,42/255,54/255), "unknown" => RGB(255/255,0/255,0/255), "practically unstable" => RGB(79/255,55/255,45/255))
 marker_colors = map(c -> color_map[c], eq_stab)
 scatter(vars,symlog.(eq_B), markercolor=marker_colors,
 yticks = (symlog.([0, 0.001, 0.1, 1, 10, 1000]),["0","10⁻³","10⁻¹","1","10","10³"]),
-markerstrokewidth=0, linewidth=2, colorbar=false, legend=false,
+markerstrokewidth=0, linewidth=1, colorbar=false, legend=false,
 xlabel="effector death rate, δ",ylabel="B (10⁶ cells/mL)",size=(300,200))
 
 savefig("bif_delta.pdf")
